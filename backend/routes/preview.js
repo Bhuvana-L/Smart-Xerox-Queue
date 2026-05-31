@@ -1,8 +1,7 @@
 const express = require('express');
 const path = require('path');
+const mongoose = require('mongoose');
 const { protect } = require('../middleware/auth');
-const FileStore = require('../models/FileStore');
-const Order = require('../models/Order');
 
 const router = express.Router();
 
@@ -11,25 +10,24 @@ router.get('/:fileName', protect, async (req, res) => {
     const fileName = req.params.fileName;
     const ext = path.extname(fileName).toLowerCase();
 
-    // Check if file exists in MongoDB
-    const file = await FileStore.findOne({ fileName: fileName });
-    if (file) {
+    // Check if file exists in GridFS
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
+    const files = await bucket.find({ filename: fileName }).toArray();
+
+    if (files && files.length > 0) {
       if (ext === '.pdf') return res.json({ type: 'pdf', url: '/api/files/' + fileName });
       if (['.jpg', '.jpeg', '.png'].includes(ext)) return res.json({ type: 'image', url: '/api/files/' + fileName });
       if (ext === '.docx') {
-        // Convert DOCX to HTML
+        // Read file from GridFS into buffer for mammoth
+        const chunks = [];
+        const stream = bucket.openDownloadStreamByName(fileName);
+        for await (const chunk of stream) { chunks.push(chunk); }
+        const buffer = Buffer.concat(chunks);
         const mammoth = require('mammoth');
-        const result = await mammoth.convertToHtml({ buffer: file.data });
+        const result = await mammoth.convertToHtml({ buffer: buffer });
         return res.json({ type: 'html', content: result.value });
       }
       return res.json({ type: 'unsupported', message: 'Preview not available for ' + ext + ' files' });
-    }
-
-    // Check order for cloud URL
-    const order = await Order.findOne({ fileName: fileName });
-    if (order && order.fileUrl) {
-      if (ext === '.pdf') return res.json({ type: 'pdf', url: order.fileUrl });
-      if (['.jpg', '.jpeg', '.png'].includes(ext)) return res.json({ type: 'image', url: order.fileUrl });
     }
 
     return res.status(404).json({ error: 'File not found' });

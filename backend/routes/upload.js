@@ -1,13 +1,13 @@
 const express = require('express');
 const multer = require('multer');
 const path = require('path');
-const fs = require('fs');
+const mongoose = require('mongoose');
+const { Readable } = require('stream');
 const { protect } = require('../middleware/auth');
-const FileStore = require('../models/FileStore');
 
 const router = express.Router();
 
-// Use memory storage - file stays in RAM, then we save to MongoDB
+// Memory storage - file in RAM then saved to GridFS
 const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
@@ -18,6 +18,13 @@ const fileFilter = (req, file, cb) => {
 };
 
 const upload = multer({ storage, fileFilter, limits: { fileSize: 50 * 1024 * 1024 } });
+
+/**
+ * Get GridFS bucket
+ */
+function getBucket() {
+  return new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
+}
 
 /**
  * Extract page count from PDF buffer
@@ -37,7 +44,7 @@ async function getPageCount(buffer, ext) {
   }
 }
 
-// Upload file - stores in MongoDB
+// Upload file - stores in MongoDB GridFS (supports files > 16MB)
 router.post('/', protect, (req, res) => {
   upload.single('document')(req, res, async (err) => {
     if (err) {
@@ -50,19 +57,28 @@ router.post('/', protect, (req, res) => {
     const fileName = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
     const pageCount = await getPageCount(req.file.buffer, ext);
 
-    // Store file in MongoDB
+    // Store in GridFS
     try {
-      await FileStore.create({
-        fileName: fileName,
-        originalName: req.file.originalname,
+      const bucket = getBucket();
+      const uploadStream = bucket.openUploadStream(fileName, {
         contentType: req.file.mimetype,
-        size: req.file.size,
-        data: req.file.buffer
+        metadata: { originalName: req.file.originalname, size: req.file.size }
       });
-      console.log('[Upload] File stored in MongoDB:', fileName);
+
+      const readStream = new Readable();
+      readStream.push(req.file.buffer);
+      readStream.push(null);
+      
+      await new Promise((resolve, reject) => {
+        readStream.pipe(uploadStream)
+          .on('finish', resolve)
+          .on('error', reject);
+      });
+
+      console.log('[Upload] File stored in GridFS:', fileName, '(' + (req.file.size / 1024 / 1024).toFixed(2) + ' MB)');
     } catch (dbErr) {
-      console.error('[Upload] MongoDB store failed:', dbErr.message);
-      return res.status(500).json({ error: 'Failed to store file' });
+      console.error('[Upload] GridFS store failed:', dbErr.message);
+      return res.status(500).json({ error: 'Failed to store file: ' + dbErr.message });
     }
 
     res.json({

@@ -76,15 +76,17 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/upload', uploadRoutes);
 
-// Serve files from MongoDB
-const FileStore = require('./models/FileStore');
+// Serve files from MongoDB GridFS
 app.get('/api/files/:fileName', async (req, res) => {
   try {
-    const file = await FileStore.findOne({ fileName: req.params.fileName });
-    if (!file) return res.status(404).json({ error: 'File not found' });
+    const mongoose = require('mongoose');
+    const bucket = new mongoose.mongo.GridFSBucket(mongoose.connection.db, { bucketName: 'uploads' });
+    const files = await bucket.find({ filename: req.params.fileName }).toArray();
+    if (!files || files.length === 0) return res.status(404).json({ error: 'File not found' });
+    const file = files[0];
     res.set('Content-Type', file.contentType || 'application/octet-stream');
-    res.set('Content-Disposition', 'inline; filename="' + (file.originalName || file.fileName) + '"');
-    res.send(file.data);
+    res.set('Content-Length', file.length);
+    bucket.openDownloadStreamByName(req.params.fileName).pipe(res);
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

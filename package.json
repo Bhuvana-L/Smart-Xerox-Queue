@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "description": "Smart Xerox Queue Management System",
   "scripts": {
-    "build": "cd backend && npm install",
-    "start": "cd backend && npm start"
+    "build": "cd backend && npm install --production",
+    "start": "cd backend && node server.js"
   },
   "engines": {
     "node": ">=18.0.0"

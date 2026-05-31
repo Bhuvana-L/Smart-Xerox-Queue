@@ -67,6 +67,18 @@ function scheduleFileDeletion(order, delayMs = DEFAULT_DELAY_MS) {
     try {
       const success = await deleteFile(filePath);
 
+      // Also delete from Cloudinary if it was uploaded there
+      if (order.fileUrl && order.fileUrl.startsWith('http') && order.fileUrl.includes('cloudinary')) {
+        try {
+          const cloudinary = require('../config/cloudinary');
+          const publicId = 'xerox-queue/' + path.basename(order.fileName, path.extname(order.fileName));
+          await cloudinary.uploader.destroy(publicId, { resource_type: 'raw' });
+          console.log(`[FileCleanup] Deleted from Cloudinary: ${publicId}`);
+        } catch (cloudErr) {
+          console.error('[FileCleanup] Cloudinary deletion failed:', cloudErr.message);
+        }
+      }
+
       if (success) {
         // Update order record with fileDeletedAt timestamp
         try {

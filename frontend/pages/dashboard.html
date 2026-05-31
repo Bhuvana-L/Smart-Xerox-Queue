@@ -280,7 +280,7 @@
 </div>
 
 <script>
-const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 const user = JSON.parse(localStorage.getItem('user') || '{}');
 const token = localStorage.getItem('token');
 if (!token) window.location.href = 'index.html';
@@ -580,7 +580,7 @@ async function showStudentPreview() {
   // Try to render actual file
   if (uploadedFile && uploadedFile.fileName) {
     try {
-      const previewRes = await fetch((window.location.port==='5000'?'':('http://localhost:5000'))+'/api/preview/'+uploadedFile.fileName, {headers:{'Authorization':'Bearer '+token}});
+      const previewRes = await fetch(API+'/preview/'+uploadedFile.fileName, {headers:{'Authorization':'Bearer '+token}});
       const preview = await previewRes.json();
       if (preview.type === 'pdf') {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';

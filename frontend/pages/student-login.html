@@ -57,7 +57,7 @@
   </div>
 </div>
 <script>
-const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 function switchTab(tab) {
   document.getElementById('panel-login').classList.toggle('hidden', tab!=='login');
   document.getElementById('panel-register').classList.toggle('hidden', tab!=='register');

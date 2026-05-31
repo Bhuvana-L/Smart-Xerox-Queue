@@ -237,7 +237,7 @@
 </div>
 
 <script>
-const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 const token = localStorage.getItem('token');
 const user = JSON.parse(localStorage.getItem('user')||'{}');
 if (!token || (user.role!=='owner'&&user.role!=='admin')) window.location.href='index.html';

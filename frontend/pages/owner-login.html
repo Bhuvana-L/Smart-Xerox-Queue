@@ -40,7 +40,7 @@
   </div>
 </div>
 <script>
-const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+const API = window.location.hostname === 'localhost' ? 'http://localhost:5000/api' : '/api';
 async function handleLogin(e) {
   e.preventDefault();
   const btn = document.getElementById('btn');

@@ -38,7 +38,24 @@ app.set('io', io);
 
 mongoose.connect(process.env.MONGO_URI)
   .then(async () => {
-    console.log('MongoDB connected');
+    console.log('MongoDB connected (primary)');
+    await onDbConnected();
+  })
+  .catch(async (err) => {
+    console.error('Primary MongoDB failed:', err.message);
+    if (process.env.MONGO_URI_BACKUP) {
+      console.log('Trying backup MongoDB...');
+      try {
+        await mongoose.connect(process.env.MONGO_URI_BACKUP);
+        console.log('MongoDB connected (backup)');
+        await onDbConnected();
+      } catch (backupErr) {
+        console.error('Backup MongoDB also failed:', backupErr.message);
+      }
+    }
+  });
+
+async function onDbConnected() {
 
     // Create compound index for efficient queue queries
     try {
@@ -68,8 +85,7 @@ mongoose.connect(process.env.MONGO_URI)
     cleanupOrphanedFiles().catch(err => {
       console.error('Error during orphaned file cleanup:', err.message);
     });
-  })
-  .catch(err => console.error('MongoDB error:', err));
+}
 
 app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);

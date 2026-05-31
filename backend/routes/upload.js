@@ -53,15 +53,20 @@ async function uploadToCloud(filePath, originalName) {
   if (!process.env.CLOUDINARY_CLOUD_NAME) return null;
   try {
     const cloudinary = require('../config/cloudinary');
+    const ext = path.extname(originalName).toLowerCase();
+    // Use 'auto' for images, 'raw' for documents
+    const resourceType = ['.jpg','.jpeg','.png'].includes(ext) ? 'image' : 'raw';
     const result = await cloudinary.uploader.upload(filePath, {
-      resource_type: 'raw',
+      resource_type: resourceType,
       folder: 'xerox-queue',
       public_id: path.basename(filePath, path.extname(filePath)),
-      use_filename: true
+      use_filename: true,
+      overwrite: true
     });
+    console.log('[Upload] Cloudinary success:', result.secure_url);
     return result.secure_url;
   } catch (e) {
-    console.error('[Upload] Cloudinary upload failed:', e.message);
+    console.error('[Upload] Cloudinary upload failed:', e.message, e);
     return null;
   }
 }

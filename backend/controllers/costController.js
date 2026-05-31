@@ -41,12 +41,13 @@ async function getDynamicPrices() {
  */
 function calculateCost(settings) {
   const { mode, colorType, side, copies, totalPages, binding, priority, pageRanges } = settings;
-  let singleColorPages = 0, singleBwPages = 0, doubleColorPages = 0, doubleBwPages = 0;
+  let singleColorPages = 0, singleBwPages = 0, doubleColorPages = 0, doubleBwPages = 0, microColorPages = 0, microBwPages = 0;
 
   if (mode === 'whole') {
     const isColor = colorType === 'color';
-    const isDouble = side === 'double';
-    if (isDouble) {
+    if (side === 'micro') {
+      if (isColor) microColorPages = totalPages; else microBwPages = totalPages;
+    } else if (side === 'double') {
       if (isColor) doubleColorPages = totalPages; else doubleBwPages = totalPages;
     } else {
       if (isColor) singleColorPages = totalPages; else singleBwPages = totalPages;
@@ -62,8 +63,10 @@ function calculateCost(settings) {
     for (let p = 1; p <= totalPages; p++) {
       const entry = pageMap[p];
       const isColor = entry && entry.colorType === 'color';
-      const isDouble = entry && entry.side === 'double';
-      if (isDouble) {
+      const side = entry ? entry.side : 'single';
+      if (side === 'micro') {
+        if (isColor) microColorPages++; else microBwPages++;
+      } else if (side === 'double') {
         if (isColor) doubleColorPages++; else doubleBwPages++;
       } else {
         if (isColor) singleColorPages++; else singleBwPages++;
@@ -72,16 +75,19 @@ function calculateCost(settings) {
   }
 
   // Cost per SHEET:
-  // Single side: 1 page = 1 sheet at full price
-  // Double side: 2 pages = 1 sheet at 1 sheet price
+  // Single: 1 page = 1 sheet. Double: 2 pages = 1 sheet. Micro: 4 pages = 1 sheet.
   const singleColorCost = singleColorPages * copies * PRICES.color;
   const singleBwCost = singleBwPages * copies * PRICES.bw;
   const doubleColorSheets = Math.ceil(doubleColorPages / 2);
   const doubleBwSheets = Math.ceil(doubleBwPages / 2);
   const doubleColorCost = doubleColorSheets * copies * PRICES.color;
   const doubleBwCost = doubleBwSheets * copies * PRICES.bw;
+  const microColorSheets = Math.ceil(microColorPages / 4);
+  const microBwSheets = Math.ceil(microBwPages / 4);
+  const microColorCost = microColorSheets * copies * PRICES.color;
+  const microBwCost = microBwSheets * copies * PRICES.bw;
 
-  const sheetCost = singleColorCost + singleBwCost + doubleColorCost + doubleBwCost;
+  const sheetCost = singleColorCost + singleBwCost + doubleColorCost + doubleBwCost + microColorCost + microBwCost;
   const bindingCost = PRICES.binding[binding] || 0;
   const urgentSurcharge = priority === 'urgent' ? PRICES.urgent : 0;
   const coverSheetCost = 2;

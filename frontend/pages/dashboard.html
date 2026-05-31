@@ -406,6 +406,7 @@ function renderRanges() {
         class="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
         <option value="single" ${r.side==='single'?'selected':''}>Single side</option>
         <option value="double" ${r.side==='double'?'selected':''}>Double side</option>
+        <option value="micro" ${r.side==='micro'?'selected':''}>Micro (4pg/sheet)</option>
       </select>
       <button onclick="removeRange(${i})" class="text-gray-400 hover:text-red-500 text-center"><i class="ti ti-trash text-base"></i></button>`;
     container.appendChild(div);
@@ -450,33 +451,31 @@ function calcCost() {
   }
 
   // Cost per SHEET (not per page)
-  // Single side: 1 page = 1 sheet. Double side: 2 pages = 1 sheet (cheaper)
-  const singlePages = pages - doublePages;
-  const doubleSheets = Math.ceil(doublePages / 2);
-  const totalSheets = singlePages + doubleSheets;
-  
-  // Calculate cost per sheet
-  // We need to know which pages are color/bw AND single/double
-  let singleColorPages = 0, singleBwPages = 0, doubleColorPages = 0, doubleBwPages = 0;
+  // Single: 1 page = 1 sheet. Double: 2 pages = 1 sheet. Micro: 4 pages = 1 sheet.
+  let singleColorPages = 0, singleBwPages = 0, doubleColorPages = 0, doubleBwPages = 0, microColorPages = 0, microBwPages = 0;
   for (let p = 1; p <= pages; p++) {
     const range = coverCount[p] > 0 ? firstRange[p] : null;
     const isColor = range && range.colorType === 'color';
-    const isDouble = range && range.side === 'double';
-    if (isDouble) { if (isColor) doubleColorPages++; else doubleBwPages++; }
+    const side = range ? range.side : 'single';
+    if (side === 'micro') { if (isColor) microColorPages++; else microBwPages++; }
+    else if (side === 'double') { if (isColor) doubleColorPages++; else doubleBwPages++; }
     else { if (isColor) singleColorPages++; else singleBwPages++; }
   }
-  // Single side sheets: each page = 1 sheet at full price
-  // Double side sheets: 2 pages = 1 sheet at 1 sheet price
   const singleColorCost = singleColorPages * copies * PRICES.color;
   const singleBwCost = singleBwPages * copies * PRICES.bw;
   const doubleColorSheets = Math.ceil(doubleColorPages / 2);
   const doubleBwSheets = Math.ceil(doubleBwPages / 2);
   const doubleColorCost = doubleColorSheets * copies * PRICES.color;
   const doubleBwCost = doubleBwSheets * copies * PRICES.bw;
-  const sheetCost = singleColorCost + singleBwCost + doubleColorCost + doubleBwCost;
+  const microColorSheets = Math.ceil(microColorPages / 4);
+  const microBwSheets = Math.ceil(microBwPages / 4);
+  const microColorCost = microColorSheets * copies * PRICES.color;
+  const microBwCost = microBwSheets * copies * PRICES.bw;
+  const sheetCost = singleColorCost + singleBwCost + doubleColorCost + doubleBwCost + microColorCost + microBwCost;
+  const totalSheets = singleColorPages + singleBwPages + doubleColorSheets + doubleBwSheets + microColorSheets + microBwSheets;
   const coverSheetCost = 2;
   const total = sheetCost + bindCost + urgent + coverSheetCost;
-  costData = { colorPages, bwPages, doublePages, totalSheets, singleColorPages, singleBwPages, doubleColorSheets, doubleBwSheets, sheetCost, bindingCost: bindCost, urgentSurcharge: urgent, coverSheetCost, total };
+  costData = { colorPages, bwPages, doublePages, totalSheets, sheetCost, bindingCost: bindCost, urgentSurcharge: urgent, coverSheetCost, total };
 
   // Update UI
   document.getElementById('cs-color-count').textContent = colorPages + ' color pages';
@@ -596,10 +595,11 @@ async function showStudentPreview() {
           const pg = pageRanges.find(r => i >= r.from && i <= r.to);
           const isC = pg ? pg.colorType==='color' : false;
           const isD = pg ? pg.side==='double' : false;
+          const isM = pg ? pg.side==='micro' : false;
           // Front side with content
-          html += '<div class="border-2 '+(isC?'border-violet-300':'border-gray-300')+' rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-4 relative"><div class="absolute top-2 left-3 z-10 flex gap-1"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+(isC?'bg-violet-100 text-violet-700':'bg-gray-100 text-gray-600')+'">Page '+i+' (Front) \u00b7 '+(isC?'COLOR':'B&W')+'</span>'+(isD?'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">\u27fa Double</span>':'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Single</span>')+'</div><img src="'+canvas.toDataURL()+'" class="w-full" style="'+(isC?'':'filter:grayscale(100%);')+'"/></div>';
+          html += '<div class="border-2 '+(isC?'border-violet-300':'border-gray-300')+' rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-4 relative"><div class="absolute top-2 left-3 z-10 flex gap-1"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+(isC?'bg-violet-100 text-violet-700':'bg-gray-100 text-gray-600')+'">Page '+i+' (Front) \u00b7 '+(isC?'COLOR':'B&W')+'</span>'+(isD?'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">\u27fa Double</span>':isM?'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-purple-100 text-purple-700">Micro 4pg</span>':'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Single</span>')+'</div><img src="'+canvas.toDataURL()+'" class="w-full" style="'+(isC?'':'filter:grayscale(100%);')+'"/></div>';
           // If single side, show blank back
-          if (!isD) {
+          if (!isD && !isM) {
             html += '<div class="border-2 border-gray-200 rounded-xl shadow bg-gray-50 max-w-[500px] mx-auto mb-6 relative h-20 flex items-center justify-center"><span class="text-xs text-gray-300 italic">Back of sheet (blank)</span></div>';
           }
         }

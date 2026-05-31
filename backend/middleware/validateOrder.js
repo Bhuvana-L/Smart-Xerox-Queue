@@ -9,7 +9,7 @@ const ALLOWED_PRIORITIES = ['normal', 'urgent'];
 const ALLOWED_PAPER_SIZES = ['A4', 'A3', 'Legal'];
 const ALLOWED_ORIENTATIONS = ['portrait', 'landscape'];
 const ALLOWED_COLOR_TYPES = ['color', 'bw'];
-const ALLOWED_SIDES = ['single', 'double'];
+const ALLOWED_SIDES = ['single', 'double', 'micro'];
 
 function validateOrder(req, res, next) {
   const { printSettings } = req.body;

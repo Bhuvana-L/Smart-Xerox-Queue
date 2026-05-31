@@ -5,13 +5,13 @@ const pageRangeSchema = new mongoose.Schema({
   from: { type: Number, required: true },
   to: { type: Number, required: true },
   colorType: { type: String, enum: ['color', 'bw'], default: 'bw' },
-  side: { type: String, enum: ['single', 'double'], default: 'single' }
+  side: { type: String, enum: ['single', 'double', 'micro'], default: 'single' }
 }, { _id: false });
 
 const printSettingsSchema = new mongoose.Schema({
   mode: { type: String, enum: ['whole', 'page-range'], default: 'whole' },
   colorType: { type: String, enum: ['color', 'bw'], default: 'bw' },
-  side: { type: String, enum: ['single', 'double'], default: 'single' },
+  side: { type: String, enum: ['single', 'double', 'micro'], default: 'single' },
   copies: { type: Number, default: 1, min: 1 },
   totalPages: { type: Number, required: true },
   paperSize: { type: String, enum: ['A4', 'A3', 'Legal'], default: 'A4' },

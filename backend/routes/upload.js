@@ -9,6 +9,7 @@ const router = express.Router();
 const uploadDir = path.join(__dirname, '../uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
 
+// Local storage (fallback)
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, uploadDir),
   filename: (req, file, cb) => {
@@ -20,22 +21,14 @@ const storage = multer.diskStorage({
 const fileFilter = (req, file, cb) => {
   const allowed = ['.pdf', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.zip'];
   const ext = path.extname(file.originalname).toLowerCase();
-  if (allowed.includes(ext)) {
-    cb(null, true);
-  } else {
-    cb(new Error('File type not supported. Allowed: PDF, DOCX, PPT, PPTX, JPG, JPEG, PNG, ZIP'), false);
-  }
+  if (allowed.includes(ext)) cb(null, true);
+  else cb(new Error('File type not supported. Allowed: PDF, DOCX, PPT, PPTX, JPG, JPEG, PNG, ZIP'), false);
 };
 
-const upload = multer({
-  storage,
-  fileFilter,
-  limits: { fileSize: 50 * 1024 * 1024 }
-});
+const upload = multer({ storage, fileFilter, limits: { fileSize: 50 * 1024 * 1024 } });
 
 /**
- * Extract page count from uploaded file.
- * Supports PDF (exact count). For images = 1 page. Others = estimate.
+ * Extract page count from PDF
  */
 async function getPageCount(filePath, ext) {
   try {
@@ -45,10 +38,7 @@ async function getPageCount(filePath, ext) {
       const data = await pdfParse(buffer);
       return data.numpages || 1;
     }
-    if (['.jpg', '.jpeg', '.png'].includes(ext)) {
-      return 1;
-    }
-    // For DOCX, PPT, PPTX, ZIP — can't easily count, return 0 (user must enter)
+    if (['.jpg', '.jpeg', '.png'].includes(ext)) return 1;
     return 0;
   } catch (e) {
     console.error('Page count extraction failed:', e.message);
@@ -57,25 +47,21 @@ async function getPageCount(filePath, ext) {
 }
 
 /**
- * Convert non-PDF files to PDF for preview using LibreOffice.
- * Returns the PDF file path or null if conversion fails.
+ * Upload to Cloudinary if configured, otherwise keep local
  */
-async function convertToPdf(filePath, ext) {
-  if (ext === '.pdf') return filePath; // already PDF
-  if (['.jpg', '.jpeg', '.png'].includes(ext)) return null; // images handled separately
-
+async function uploadToCloud(filePath, originalName) {
+  if (!process.env.CLOUDINARY_CLOUD_NAME) return null;
   try {
-    const libre = require('libreoffice-convert');
-    const { promisify } = require('util');
-    const convert = promisify(libre.convert);
-    const input = fs.readFileSync(filePath);
-    const pdfBuffer = await convert(input, '.pdf', undefined);
-    const pdfPath = filePath.replace(path.extname(filePath), '.pdf');
-    fs.writeFileSync(pdfPath, pdfBuffer);
-    console.log('[Upload] Converted to PDF:', pdfPath);
-    return pdfPath;
+    const cloudinary = require('../config/cloudinary');
+    const result = await cloudinary.uploader.upload(filePath, {
+      resource_type: 'raw',
+      folder: 'xerox-queue',
+      public_id: path.basename(filePath, path.extname(filePath)),
+      use_filename: true
+    });
+    return result.secure_url;
   } catch (e) {
-    console.error('[Upload] PDF conversion failed (LibreOffice may not be installed):', e.message);
+    console.error('[Upload] Cloudinary upload failed:', e.message);
     return null;
   }
 }
@@ -83,41 +69,26 @@ async function convertToPdf(filePath, ext) {
 router.post('/', protect, (req, res) => {
   upload.single('document')(req, res, async (err) => {
     if (err) {
-      if (err.code === 'LIMIT_FILE_SIZE') {
-        return res.status(400).json({ error: 'File size exceeds 50MB limit' });
-      }
-      if (err.message === 'File type not supported. Allowed: PDF, DOCX, PPT, PPTX, JPG, JPEG, PNG, ZIP') {
-        return res.status(400).json({ error: 'File type not supported. Allowed: PDF, DOCX, PPT, PPTX, JPG, JPEG, PNG, ZIP' });
-      }
+      if (err.code === 'LIMIT_FILE_SIZE') return res.status(400).json({ error: 'File size exceeds 50MB limit' });
       return res.status(400).json({ error: err.message });
     }
-
-    if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded' });
-    }
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     const ext = path.extname(req.file.originalname).toLowerCase();
     const pageCount = await getPageCount(req.file.path, ext);
 
-    // Try to convert to PDF for preview
-    let pdfUrl = null;
-    if (ext === '.pdf') {
-      pdfUrl = '/uploads/' + req.file.filename;
-    } else {
-      const pdfPath = await convertToPdf(req.file.path, ext);
-      if (pdfPath && pdfPath !== req.file.path) {
-        pdfUrl = '/uploads/' + path.basename(pdfPath);
-      }
-    }
+    // Try cloud upload
+    const cloudUrl = await uploadToCloud(req.file.path, req.file.originalname);
+    const fileUrl = cloudUrl || ('/uploads/' + req.file.filename);
 
     res.json({
       fileName: req.file.filename,
       originalName: req.file.originalname,
-      fileUrl: '/uploads/' + req.file.filename,
+      fileUrl: fileUrl,
       fileType: ext,
       size: req.file.size,
       pageCount: pageCount,
-      pdfUrl: pdfUrl
+      isCloud: !!cloudUrl
     });
   });
 });

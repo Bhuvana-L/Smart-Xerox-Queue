@@ -584,7 +584,8 @@ async function showStudentPreview() {
       const preview = await previewRes.json();
       if (preview.type === 'pdf') {
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
-        const pdf = await pdfjsLib.getDocument(window.location.origin + preview.url).promise;
+        const pdfUrl = preview.url.startsWith('http') ? preview.url : (window.location.origin + preview.url);
+        const pdf = await pdfjsLib.getDocument(pdfUrl).promise;
         const totalPdfPages = pdf.numPages;
         for (let i = 1; i <= totalPdfPages; i++) {
           const page = await pdf.getPage(i);
@@ -603,7 +604,8 @@ async function showStudentPreview() {
           }
         }
       } else if (preview.type === 'image') {
-        html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-6"><img src="'+window.location.origin+preview.url+'" class="w-full" style="'+(pageRanges[0]&&pageRanges[0].colorType==='color'?'':'filter:grayscale(100%);')+'"/></div>';
+        const imgUrl = preview.url.startsWith('http') ? preview.url : (window.location.origin+preview.url);
+        html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-6"><img src="'+imgUrl+'" class="w-full" style="'+(pageRanges[0]&&pageRanges[0].colorType==='color'?'':'filter:grayscale(100%);')+'"/></div>';
       } else if (preview.type === 'html') {
         html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg '+bindClass+' max-w-[500px] mx-auto mb-6 overflow-hidden"><div class="p-6 text-sm leading-relaxed">'+preview.content+'</div></div>';
       } else {

@@ -75,6 +75,20 @@ app.use('/api/auth', authRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/owner', ownerRoutes);
 app.use('/api/upload', uploadRoutes);
+
+// Serve files from MongoDB
+const FileStore = require('./models/FileStore');
+app.get('/api/files/:fileName', async (req, res) => {
+  try {
+    const file = await FileStore.findOne({ fileName: req.params.fileName });
+    if (!file) return res.status(404).json({ error: 'File not found' });
+    res.set('Content-Type', file.contentType || 'application/octet-stream');
+    res.set('Content-Disposition', 'inline; filename="' + (file.originalName || file.fileName) + '"');
+    res.send(file.data);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 app.use('/api/pricing', pricingRoutes);
 app.use('/api/preview', previewRoutes);
 

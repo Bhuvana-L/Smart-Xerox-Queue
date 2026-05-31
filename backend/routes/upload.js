@@ -3,20 +3,12 @@ const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
 const { protect } = require('../middleware/auth');
+const FileStore = require('../models/FileStore');
 
 const router = express.Router();
 
-const uploadDir = path.join(__dirname, '../uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir, { recursive: true });
-
-// Local storage (fallback)
-const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
-  filename: (req, file, cb) => {
-    const unique = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, unique + path.extname(file.originalname));
-  }
-});
+// Use memory storage - file stays in RAM, then we save to MongoDB
+const storage = multer.memoryStorage();
 
 const fileFilter = (req, file, cb) => {
   const allowed = ['.pdf', '.docx', '.ppt', '.pptx', '.jpg', '.jpeg', '.png', '.zip'];
@@ -28,13 +20,12 @@ const fileFilter = (req, file, cb) => {
 const upload = multer({ storage, fileFilter, limits: { fileSize: 50 * 1024 * 1024 } });
 
 /**
- * Extract page count from PDF
+ * Extract page count from PDF buffer
  */
-async function getPageCount(filePath, ext) {
+async function getPageCount(buffer, ext) {
   try {
     if (ext === '.pdf') {
       const pdfParse = require('pdf-parse');
-      const buffer = fs.readFileSync(filePath);
       const data = await pdfParse(buffer);
       return data.numpages || 1;
     }
@@ -46,31 +37,7 @@ async function getPageCount(filePath, ext) {
   }
 }
 
-/**
- * Upload to Cloudinary if configured, otherwise keep local
- */
-async function uploadToCloud(filePath, originalName) {
-  if (!process.env.CLOUDINARY_CLOUD_NAME) return null;
-  try {
-    const cloudinary = require('../config/cloudinary');
-    const ext = path.extname(originalName).toLowerCase();
-    // Use 'auto' for images, 'raw' for documents
-    const resourceType = ['.jpg','.jpeg','.png'].includes(ext) ? 'image' : 'raw';
-    const result = await cloudinary.uploader.upload(filePath, {
-      resource_type: resourceType,
-      folder: 'xerox-queue',
-      public_id: path.basename(filePath, path.extname(filePath)),
-      use_filename: true,
-      overwrite: true
-    });
-    console.log('[Upload] Cloudinary success:', result.secure_url);
-    return result.secure_url;
-  } catch (e) {
-    console.error('[Upload] Cloudinary upload failed:', e.message, e);
-    return null;
-  }
-}
-
+// Upload file - stores in MongoDB
 router.post('/', protect, (req, res) => {
   upload.single('document')(req, res, async (err) => {
     if (err) {
@@ -80,20 +47,31 @@ router.post('/', protect, (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     const ext = path.extname(req.file.originalname).toLowerCase();
-    const pageCount = await getPageCount(req.file.path, ext);
+    const fileName = Date.now() + '-' + Math.round(Math.random() * 1e9) + ext;
+    const pageCount = await getPageCount(req.file.buffer, ext);
 
-    // Try cloud upload
-    const cloudUrl = await uploadToCloud(req.file.path, req.file.originalname);
-    const fileUrl = cloudUrl || ('/uploads/' + req.file.filename);
+    // Store file in MongoDB
+    try {
+      await FileStore.create({
+        fileName: fileName,
+        originalName: req.file.originalname,
+        contentType: req.file.mimetype,
+        size: req.file.size,
+        data: req.file.buffer
+      });
+      console.log('[Upload] File stored in MongoDB:', fileName);
+    } catch (dbErr) {
+      console.error('[Upload] MongoDB store failed:', dbErr.message);
+      return res.status(500).json({ error: 'Failed to store file' });
+    }
 
     res.json({
-      fileName: req.file.filename,
+      fileName: fileName,
       originalName: req.file.originalname,
-      fileUrl: fileUrl,
+      fileUrl: '/api/files/' + fileName,
       fileType: ext,
       size: req.file.size,
-      pageCount: pageCount,
-      isCloud: !!cloudUrl
+      pageCount: pageCount
     });
   });
 });

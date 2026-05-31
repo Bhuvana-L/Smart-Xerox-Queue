@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Owner Login — Smart Xerox Queue</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  <style>body{font-family:'Inter',sans-serif}</style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+<div class="w-full max-w-md">
+  <div class="text-center mb-6">
+    <a href="index.html" class="text-sm text-violet-600 hover:underline"><i class="ti ti-arrow-left"></i> Back</a>
+    <div class="inline-flex items-center justify-center w-14 h-14 bg-emerald-100 rounded-2xl mt-4 mb-3">
+      <i class="ti ti-building-store text-emerald-600 text-2xl"></i>
+    </div>
+    <h1 class="text-xl font-semibold text-gray-900">Shop Owner Login</h1>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-200 p-8">
+    <form onsubmit="handleLogin(event)" class="space-y-4">
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+        <input id="email" type="email" required value="owner@xerox.com"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+      </div>
+      <div>
+        <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+        <input id="password" type="password" required value="owner123"
+          class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-emerald-300"/>
+      </div>
+      <div id="error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+      <button type="submit" id="btn"
+        class="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-medium py-3 rounded-xl text-sm transition">
+        Login as Owner
+      </button>
+    </form>
+    <p class="text-xs text-gray-400 mt-4 text-center">Default: owner@xerox.com / owner123</p>
+    <p class="text-xs text-gray-400 mt-1 text-center">You can change email & password in your profile after login.</p>
+  </div>
+</div>
+<script>
+const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+async function handleLogin(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btn');
+  btn.disabled = true; btn.textContent = 'Logging in...';
+  try {
+    const res = await fetch(API + '/auth/login', {
+      method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ email: document.getElementById('email').value, password: document.getElementById('password').value })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    if (data.role !== 'owner' && data.role !== 'admin') throw new Error('This account is not a shop owner');
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data));
+    window.location.href = 'owner.html';
+  } catch(err) {
+    document.getElementById('error').textContent = err.message;
+    document.getElementById('error').classList.remove('hidden');
+    btn.disabled = false; btn.textContent = 'Login as Owner';
+  }
+}
+if (localStorage.getItem('token')) {
+  const u = JSON.parse(localStorage.getItem('user')||'{}');
+  if (u.role==='owner'||u.role==='admin') window.location.href='owner.html';
+}
+</script>
+</body>
+</html>

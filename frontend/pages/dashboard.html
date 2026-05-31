@@ -1,0 +1,643 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Dashboard — Smart Xerox Queue</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <style>
+    body{font-family:'Inter',sans-serif}
+    .fade-in{animation:fadeIn .35s ease}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+  </style>
+</head>
+<body class="bg-gray-50 min-h-screen">
+
+<!-- Navbar -->
+<nav class="bg-white border-b border-gray-200 px-6 py-3 flex items-center justify-between sticky top-0 z-50">
+  <div class="flex items-center gap-3">
+    <div class="w-9 h-9 bg-violet-100 rounded-xl flex items-center justify-center">
+      <i class="ti ti-printer text-violet-600 text-lg"></i>
+    </div>
+    <span class="font-semibold text-gray-900">Smart Xerox Queue</span>
+  </div>
+  <div class="flex items-center gap-3">
+    <a href="orders.html" class="text-sm text-violet-600 hover:underline flex items-center gap-1"><i class="ti ti-list"></i> My Orders</a>
+    <a href="profile.html" class="text-sm text-gray-500 hover:text-gray-800 flex items-center gap-1"><i class="ti ti-user"></i> Profile</a>
+    <span id="nav-name" class="text-sm text-gray-600"></span>
+    <button onclick="logout()" class="text-sm text-gray-500 hover:text-gray-800 transition flex items-center gap-1">
+      <i class="ti ti-logout text-base"></i> Logout
+    </button>
+  </div>
+</nav>
+
+<!-- Main Content -->
+<div class="max-w-6xl mx-auto px-4 py-8">
+
+  <!-- Steps indicator -->
+  <div class="flex items-center gap-2 mb-8">
+    <div class="step-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-violet-100 text-violet-700" id="pill-1">
+      <i class="ti ti-upload text-xs"></i> 1. Upload
+    </div>
+    <i class="ti ti-chevron-right text-gray-300 text-sm"></i>
+    <div class="step-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500" id="pill-2">
+      <i class="ti ti-settings text-xs"></i> 2. Preferences
+    </div>
+    <i class="ti ti-chevron-right text-gray-300 text-sm"></i>
+    <div class="step-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500" id="pill-3">
+      <i class="ti ti-credit-card text-xs"></i> 3. Payment
+    </div>
+    <i class="ti ti-chevron-right text-gray-300 text-sm"></i>
+    <div class="step-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500" id="pill-4">
+      <i class="ti ti-receipt text-xs"></i> 4. Token
+    </div>
+  </div>
+
+  <!-- ==================== STEP 1: UPLOAD ==================== -->
+  <div id="step-1" class="fade-in">
+    <h2 class="text-xl font-semibold text-gray-900 mb-1">Upload your document</h2>
+    <p class="text-gray-500 text-sm mb-2">Supported: PDF, DOCX, PPT, JPG, PNG, ZIP (max 50MB)</p>
+    <p class="text-xs text-amber-600 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2 mb-6 flex items-center gap-2"><i class="ti ti-info-circle"></i> For best preview and print quality, upload PDF files. Use "Save as PDF" or "Print to PDF" from Word/PowerPoint.</p>
+    <div id="drop-zone" onclick="document.getElementById('file-input').click()"
+      class="border-2 border-dashed border-gray-300 rounded-2xl p-12 text-center cursor-pointer hover:border-violet-400 hover:bg-violet-50 transition-all">
+      <i class="ti ti-cloud-upload text-gray-400 text-5xl mb-3 block"></i>
+      <div class="text-gray-600 font-medium">Click to upload or drag & drop</div>
+      <div class="text-gray-400 text-sm mt-1">PDF, DOCX, PPT, JPG, PNG, ZIP up to 50MB</div>
+      <input type="file" id="file-input" class="hidden" accept=".pdf,.docx,.ppt,.pptx,.jpg,.jpeg,.png,.zip" onchange="handleFileSelect(this)"/>
+    </div>
+    <div id="file-info" class="hidden mt-4 bg-violet-50 border border-violet-200 rounded-xl px-4 py-3 flex items-center gap-3">
+      <i class="ti ti-file-filled text-violet-500 text-xl"></i>
+      <div class="flex-1">
+        <div id="file-name" class="text-sm font-medium text-gray-900"></div>
+        <div id="file-size" class="text-xs text-gray-500"></div>
+      </div>
+      <button onclick="clearFile()" class="text-gray-400 hover:text-red-500 transition"><i class="ti ti-x"></i></button>
+    </div>
+    <div id="upload-error" class="hidden mt-3 text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+    <div class="mt-6 flex justify-end">
+      <button onclick="uploadAndProceed()" id="btn-step1"
+        class="bg-violet-600 hover:bg-violet-700 text-white font-medium px-6 py-3 rounded-xl text-sm transition flex items-center gap-2">
+        Continue <i class="ti ti-arrow-right"></i>
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 2: PREFERENCES ==================== -->
+  <div id="step-2" class="hidden fade-in">
+    <h2 class="text-xl font-semibold text-gray-900 mb-1">Print preferences</h2>
+    <p class="text-gray-500 text-sm mb-6">Configure how you want your document printed</p>
+
+    <div class="space-y-4">
+
+      <!-- Document Settings -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Document Settings</div>
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Total pages in document</label>
+            <input type="number" id="total-pages" value="20" min="1" max="10000" readonly
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-gray-50 text-gray-700 cursor-not-allowed"
+              />
+            <span class="text-[10px] text-gray-400 mt-0.5 block" id="pages-note">Auto-detected from file</span>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">No. of copies</label>
+            <input type="number" id="copies" value="1" min="1" max="100"
+              class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"
+              oninput="calcCost()"/>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Binding</label>
+            <select id="binding" onchange="calcCost()" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 bg-white">
+              <option value="none">None</option>
+              <option value="softbinding">Soft Binding (₹15)</option>
+              <option value="spiral">Spiral (₹30)</option>
+              <option value="stapling">Stapling (₹5)</option>
+              <option value="lamination">Lamination (₹20)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+
+      <!-- Page Ranges -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Page Ranges</div>
+        <p class="text-xs text-gray-500 mb-4">Add ranges and assign color type + print side to each. Unassigned pages default to B&W single side.</p>
+        <div class="grid grid-cols-5 gap-2 mb-2 px-1">
+          <span class="text-xs text-gray-400 font-medium">From page</span>
+          <span class="text-xs text-gray-400 font-medium">To page</span>
+          <span class="text-xs text-gray-400 font-medium">Color type</span>
+          <span class="text-xs text-gray-400 font-medium">Print side</span>
+          <span></span>
+        </div>
+        <div id="range-list" class="space-y-2"></div>
+        <button onclick="addRange()" class="mt-3 border border-dashed border-gray-300 rounded-xl py-2 px-4 text-sm text-gray-500 hover:bg-gray-50 transition flex items-center gap-1">
+          <i class="ti ti-plus"></i> Add range
+        </button>
+      </div>
+
+      <!-- Page Map Preview -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Page Map Preview</div>
+        <p class="text-xs text-gray-500 mb-3">Each box = one page. Tap a range row above to update.</p>
+        <div class="flex flex-wrap gap-3 mb-3 text-xs">
+          <span class="flex items-center gap-1"><span class="w-5 h-5 rounded bg-violet-200 border border-violet-400 flex items-center justify-center text-[10px] font-bold text-violet-700">C</span> Color</span>
+          <span class="flex items-center gap-1"><span class="w-5 h-5 rounded bg-gray-200 border border-gray-400 flex items-center justify-center text-[10px] font-bold text-gray-700">B</span> B&W</span>
+          <span class="flex items-center gap-1"><span class="w-5 h-5 rounded bg-amber-50 border border-amber-300 flex items-center justify-center text-[10px] font-bold text-amber-600">?</span> Default (B&W)</span>
+          <span class="flex items-center gap-1"><span class="w-5 h-5 rounded bg-red-100 border border-red-400 flex items-center justify-center text-[10px] font-bold text-red-600">!</span> <span class="text-red-500">Conflict</span></span>
+        </div>
+        <div id="page-map-grid" class="flex flex-wrap gap-1"></div>
+        <div id="conflict-warnings" class="hidden mt-3 text-xs text-red-600 bg-red-50 border border-red-200 rounded-xl px-3 py-2"></div>
+      </div>
+
+      <!-- Cost Breakdown -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-5">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Cost Breakdown</div>
+        <div class="flex gap-2 mb-4">
+          <span class="px-2.5 py-1 bg-violet-100 text-violet-700 rounded-full text-xs font-medium" id="cs-color-count">0 color pages</span>
+          <span class="px-2.5 py-1 bg-gray-100 text-gray-700 rounded-full text-xs font-medium" id="cs-bw-count">0 B&W pages</span>
+        </div>
+        <div class="space-y-2 mb-4">
+          <div class="flex justify-between text-sm text-gray-600"><span>Color sheets</span><span id="cs-color">₹0</span></div>
+          <div class="flex justify-between text-sm text-gray-600"><span>B&W sheets</span><span id="cs-bw">₹0</span></div>
+          <div class="flex justify-between text-sm text-gray-600"><span>Sheets used</span><span id="cs-side">0</span></div>
+          <div class="flex justify-between text-sm text-gray-600"><span>Binding</span><span id="cs-bind">₹0</span></div>
+          <div class="flex justify-between text-sm text-gray-600"><span>Urgent surcharge</span><span id="cs-urgent">₹0</span></div>
+          <div class="flex justify-between text-sm text-gray-600"><span>Cover sheet (token page)</span><span>₹2</span></div>
+        </div>
+        <div class="flex justify-between text-lg font-bold text-gray-900 border-t border-gray-200 pt-3">
+          <span>Total</span><span id="cs-total">₹0</span>
+        </div>
+      </div>
+
+      <!-- Extra settings row -->
+      <div class="bg-white border border-gray-200 rounded-2xl p-5">
+        <div class="grid grid-cols-3 gap-4">
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Paper size</label>
+            <select id="paper-size" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+              <option value="A4">A4</option><option value="A3">A3</option><option value="Legal">Legal</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Orientation</label>
+            <select id="orientation" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+              <option value="portrait">Portrait</option><option value="landscape">Landscape</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs text-gray-500 mb-1">Priority</label>
+            <select id="priority" onchange="calcCost()" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-violet-300">
+              <option value="normal">Normal</option><option value="urgent">Urgent (+₹20)</option>
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="mt-6 flex justify-between">
+      <button onclick="goToStep(1)" class="border border-gray-200 text-gray-600 font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition flex items-center gap-2">
+        <i class="ti ti-arrow-left"></i> Back
+      </button>
+      <div class="flex gap-2">
+        <button onclick="showStudentPreview()" class="border border-violet-300 text-violet-600 font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-violet-50 transition flex items-center gap-2">
+          <i class="ti ti-eye"></i> Preview
+        </button>
+        <button onclick="goToStep(3)" class="bg-violet-600 hover:bg-violet-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition flex items-center gap-2">
+          Continue to Payment <i class="ti ti-arrow-right"></i>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 3: PAYMENT ==================== -->
+  <div id="step-3" class="hidden fade-in">
+    <h2 class="text-xl font-semibold text-gray-900 mb-1">Confirm & Submit</h2>
+    <p class="text-gray-500 text-sm mb-6">Review your order and submit</p>
+    <div class="max-w-lg mx-auto">
+      <div class="bg-white border border-gray-200 rounded-2xl p-6 mb-4">
+        <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">Order summary</div>
+        <div id="order-summary" class="text-sm text-gray-600 space-y-2"></div>
+        <div class="mt-4 bg-violet-50 rounded-xl p-4 text-center">
+          <div class="text-xs text-gray-500">Total payable at shop</div>
+          <div class="text-3xl font-semibold text-violet-700 mt-1" id="pay-total">₹0</div>
+        </div>
+      </div>
+      <div class="bg-amber-50 border border-amber-200 rounded-xl px-4 py-3 text-sm text-amber-700 flex items-center gap-2 mb-4">
+        <i class="ti ti-cash"></i> Payment will be collected at the shop counter
+      </div>
+    </div>
+    <div class="mt-6 flex justify-between">
+      <button onclick="goToStep(2)" class="border border-gray-200 text-gray-600 font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition flex items-center gap-2"><i class="ti ti-arrow-left"></i> Back</button>
+      <button onclick="submitOrder()" id="btn-submit" class="bg-violet-600 hover:bg-violet-700 text-white font-medium px-6 py-2.5 rounded-xl text-sm transition flex items-center gap-2"><i class="ti ti-printer"></i> Place print order</button>
+    </div>
+  </div>
+
+  <!-- ==================== STEP 4: TOKEN ==================== -->
+  <div id="step-4" class="hidden fade-in text-center">
+    <div class="inline-flex items-center justify-center w-20 h-20 bg-green-100 rounded-2xl mb-6">
+      <i class="ti ti-check text-green-600 text-4xl"></i>
+    </div>
+    <h2 class="text-2xl font-semibold text-gray-900 mb-2">Order placed!</h2>
+    <p class="text-gray-500 mb-8">Your print request is in the queue.</p>
+    <div class="max-w-sm mx-auto bg-white border border-gray-200 rounded-2xl p-8 mb-6">
+      <div class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Your token</div>
+      <div class="text-5xl font-bold text-violet-600 mb-2" id="token-display">PX---</div>
+      <div class="text-sm text-gray-500 mb-4">Show this at the Xerox counter</div>
+      <div class="flex gap-2 justify-center mb-4">
+        <span class="px-3 py-1 bg-gray-100 text-gray-600 rounded-full text-xs" id="token-status">Waiting</span>
+        <span class="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-xs" id="token-time">Est. ~10 min</span>
+      </div>
+      <div class="flex justify-between text-xs text-gray-400 mb-1">
+        <span>Waiting</span><span>Processing</span><span>Printing</span><span>Ready</span><span>Done</span>
+      </div>
+      <div class="flex gap-0.5 h-1.5">
+        <div class="flex-1 rounded-l bg-violet-500"></div>
+        <div class="flex-1 bg-gray-200"></div>
+        <div class="flex-1 bg-gray-200"></div>
+        <div class="flex-1 bg-gray-200"></div>
+        <div class="flex-1 rounded-r bg-gray-200"></div>
+      </div>
+    </div>
+    <div class="flex gap-3 justify-center">
+      <button onclick="resetFlow()" class="border border-gray-200 text-gray-600 font-medium px-5 py-2.5 rounded-xl text-sm hover:bg-gray-50 transition">New order</button>
+      <a href="orders.html" class="bg-violet-600 hover:bg-violet-700 text-white font-medium px-5 py-2.5 rounded-xl text-sm transition inline-flex items-center gap-1">View all orders</a>
+    </div>
+  </div>
+
+</div><!-- end max-w container -->
+
+<!-- Student Print Preview Modal -->
+<div id="student-preview-modal" class="hidden fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+  <div class="bg-white rounded-2xl p-6 max-w-2xl w-full max-h-[90vh] overflow-y-auto relative">
+    <button onclick="document.getElementById('student-preview-modal').classList.add('hidden')" class="absolute top-4 right-4 text-gray-400 hover:text-gray-600 z-10"><i class="ti ti-x text-xl"></i></button>
+    <h3 class="font-semibold text-gray-900 mb-4"><i class="ti ti-eye mr-2"></i>Print Preview</h3>
+    <div id="student-preview-content"></div>
+  </div>
+</div>
+
+<script>
+const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const token = localStorage.getItem('token');
+if (!token) window.location.href = 'index.html';
+document.getElementById('nav-name').textContent = user.name || '';
+
+let uploadedFile = null; // will hold server response after upload
+let pageRanges = [{from:1, to:5, colorType:'color', side:'single'}, {from:6, to:20, colorType:'bw', side:'single'}];
+let costData = {};
+let paymentMethod = 'counter';
+let currentStep = 1;
+let PRICES = { bw:2, color:10, doubleSide:1.5, softbinding:15, spiral:30, stapling:5, lamination:20, urgent:20 };
+
+// Fetch dynamic pricing from server (silent, no side effects)
+fetch(API + '/pricing').then(r=>r.json()).then(p => {
+  if (p && p.bw !== undefined) {
+    PRICES = { bw:p.bw, color:p.color, doubleSide:p.doubleSide, softbinding:p.softbinding||15, spiral:p.spiral, stapling:p.stapling, lamination:p.lamination, urgent:p.urgent };
+    if (currentStep === 2) calcCost(); // refresh cost if already on step 2
+  }
+}).catch(() => {});
+
+// ===== STEP NAVIGATION =====
+function goToStep(n) {
+  currentStep = n;
+  [1,2,3,4].forEach(i => {
+    document.getElementById('step-'+i).classList.add('hidden');
+    document.getElementById('pill-'+i).className = 'step-pill flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-medium ' +
+      (i < n ? 'bg-green-100 text-green-700' : i === n ? 'bg-violet-100 text-violet-700' : 'bg-gray-100 text-gray-500');
+  });
+  document.getElementById('step-'+n).classList.remove('hidden');
+  if (n === 2) { try { renderRanges(); calcCost(); } catch(e) { console.error('Step 2 init error:', e); } }
+  if (n === 3) { try { updateOrderSummary(); } catch(e) { console.error('Step 3 init error:', e); } }
+}
+
+// ===== STEP 1: FILE UPLOAD =====
+function handleFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  uploadedFile = file;
+  document.getElementById('file-name').textContent = file.name;
+  document.getElementById('file-size').textContent = (file.size/1024/1024).toFixed(2) + ' MB';
+  document.getElementById('file-info').classList.remove('hidden');
+  document.getElementById('upload-error').classList.add('hidden');
+}
+
+function clearFile() {
+  uploadedFile = null;
+  document.getElementById('file-info').classList.add('hidden');
+  document.getElementById('file-input').value = '';
+}
+
+async function uploadAndProceed() {
+  if (!uploadedFile) { showUploadError('Please select a file first'); return; }
+  const btn = document.getElementById('btn-step1');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2 animate-spin"></i> Uploading...';
+  const formData = new FormData();
+  formData.append('document', uploadedFile);
+  try {
+    const res = await fetch(API + '/upload', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + token },
+      body: formData
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.message || 'Upload failed');
+    // Store server response
+    uploadedFile = { name: data.originalName, fileName: data.fileName, originalName: data.originalName, fileUrl: data.fileUrl, fileType: data.fileType, pageCount: data.pageCount || 0, pdfUrl: data.pdfUrl };
+    // Set total pages from file if detected
+    if (data.pageCount > 0) {
+      document.getElementById('total-pages').value = data.pageCount;
+      document.getElementById('total-pages').readOnly = true;
+      document.getElementById('pages-note').textContent = 'Auto-detected from file (' + data.pageCount + ' pages)';
+    } else {
+      // Can't detect pages for non-PDF, let user enter
+      document.getElementById('total-pages').readOnly = false;
+      document.getElementById('total-pages').className = 'w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300';
+      document.getElementById('total-pages').setAttribute('oninput', 'calcCost()');
+      document.getElementById('pages-note').textContent = 'Could not detect — please enter manually';
+    }
+    goToStep(2);
+  } catch(err) {
+    showUploadError(err.message);
+    btn.disabled = false; btn.innerHTML = 'Continue <i class="ti ti-arrow-right"></i>';
+  }
+}
+
+function showUploadError(msg) {
+  const el = document.getElementById('upload-error');
+  el.textContent = msg; el.classList.remove('hidden');
+}
+
+// ===== STEP 2: PAGE RANGES & COST =====
+function addRange() {
+  const tp = parseInt(document.getElementById('total-pages').value) || 20;
+  pageRanges.push({from:1, to:tp, colorType:'bw', side:'single'});
+  renderRanges(); calcCost();
+}
+
+function removeRange(i) {
+  pageRanges.splice(i, 1);
+  renderRanges(); calcCost();
+}
+
+function renderRanges() {
+  const container = document.getElementById('range-list');
+  const tp = parseInt(document.getElementById('total-pages').value) || 20;
+  container.innerHTML = '';
+  pageRanges.forEach((r, i) => {
+    const div = document.createElement('div');
+    div.className = 'grid grid-cols-5 gap-2 items-center bg-gray-50 rounded-xl p-2';
+    div.innerHTML = `
+      <input type="number" value="${r.from}" min="1" max="${tp}"
+        class="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-300"
+        onchange="pageRanges[${i}].from=parseInt(this.value)||1;calcCost()"/>
+      <input type="number" value="${r.to}" min="1" max="${tp}"
+        class="border border-gray-200 rounded-lg px-2 py-2 text-sm focus:outline-none focus:ring-1 focus:ring-violet-300"
+        onchange="pageRanges[${i}].to=parseInt(this.value)||1;calcCost()"/>
+      <select onchange="pageRanges[${i}].colorType=this.value;calcCost()"
+        class="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+        <option value="color" ${r.colorType==='color'?'selected':''}>Color (₹10/pg)</option>
+        <option value="bw" ${r.colorType==='bw'?'selected':''}>B&W (₹2/pg)</option>
+      </select>
+      <select onchange="pageRanges[${i}].side=this.value;calcCost()"
+        class="border border-gray-200 rounded-lg px-2 py-2 text-sm bg-white focus:outline-none">
+        <option value="single" ${r.side==='single'?'selected':''}>Single side</option>
+        <option value="double" ${r.side==='double'?'selected':''}>Double side</option>
+      </select>
+      <button onclick="removeRange(${i})" class="text-gray-400 hover:text-red-500 text-center"><i class="ti ti-trash text-base"></i></button>`;
+    container.appendChild(div);
+  });
+}
+
+function calcCost() {
+  const pages = parseInt(document.getElementById('total-pages').value) || 1;
+  const copies = parseInt(document.getElementById('copies').value) || 1;
+  const bindMap = {none:0, softbinding:PRICES.softbinding, spiral:PRICES.spiral, stapling:PRICES.stapling, lamination:PRICES.lamination};
+  const bindCost = bindMap[document.getElementById('binding').value] || 0;
+  const urgent = document.getElementById('priority').value === 'urgent' ? PRICES.urgent : 0;
+
+  // Build page map with first-write-wins + conflict detection
+  const coverCount = new Array(pages+1).fill(0);
+  const firstRange = new Array(pages+1).fill(null);
+  for (const range of pageRanges) {
+    for (let p = range.from; p <= Math.min(range.to, pages); p++) {
+      coverCount[p]++;
+      if (firstRange[p] === null) firstRange[p] = range;
+    }
+  }
+
+  let colorPages = 0, bwPages = 0, doublePages = 0;
+  const pageMap = [];
+  for (let p = 1; p <= pages; p++) {
+    const hasConflict = coverCount[p] > 1;
+    const range = firstRange[p];
+    let label, colorType, side;
+    if (hasConflict) {
+      label = '!'; colorType = range.colorType; side = range.side;
+    } else if (range) {
+      label = range.colorType === 'color' ? 'C' : 'B';
+      colorType = range.colorType; side = range.side;
+    } else {
+      label = '?'; colorType = 'default'; side = 'default';
+    }
+    pageMap.push({ page: p, label, colorType, side, hasConflict });
+    // Cost calc
+    if (!range || range.colorType === 'bw') bwPages++; else colorPages++;
+    if (range && range.side === 'double') doublePages++;
+  }
+
+  // Cost per SHEET (not per page)
+  // Single side: 1 page = 1 sheet. Double side: 2 pages = 1 sheet (cheaper)
+  const singlePages = pages - doublePages;
+  const doubleSheets = Math.ceil(doublePages / 2);
+  const totalSheets = singlePages + doubleSheets;
+  
+  // Calculate cost per sheet
+  // We need to know which pages are color/bw AND single/double
+  let singleColorPages = 0, singleBwPages = 0, doubleColorPages = 0, doubleBwPages = 0;
+  for (let p = 1; p <= pages; p++) {
+    const range = coverCount[p] > 0 ? firstRange[p] : null;
+    const isColor = range && range.colorType === 'color';
+    const isDouble = range && range.side === 'double';
+    if (isDouble) { if (isColor) doubleColorPages++; else doubleBwPages++; }
+    else { if (isColor) singleColorPages++; else singleBwPages++; }
+  }
+  // Single side sheets: each page = 1 sheet at full price
+  // Double side sheets: 2 pages = 1 sheet at 1 sheet price
+  const singleColorCost = singleColorPages * copies * PRICES.color;
+  const singleBwCost = singleBwPages * copies * PRICES.bw;
+  const doubleColorSheets = Math.ceil(doubleColorPages / 2);
+  const doubleBwSheets = Math.ceil(doubleBwPages / 2);
+  const doubleColorCost = doubleColorSheets * copies * PRICES.color;
+  const doubleBwCost = doubleBwSheets * copies * PRICES.bw;
+  const sheetCost = singleColorCost + singleBwCost + doubleColorCost + doubleBwCost;
+  const coverSheetCost = 2;
+  const total = sheetCost + bindCost + urgent + coverSheetCost;
+  costData = { colorPages, bwPages, doublePages, totalSheets, singleColorPages, singleBwPages, doubleColorSheets, doubleBwSheets, sheetCost, bindingCost: bindCost, urgentSurcharge: urgent, coverSheetCost, total };
+
+  // Update UI
+  document.getElementById('cs-color-count').textContent = colorPages + ' color pages';
+  document.getElementById('cs-bw-count').textContent = bwPages + ' B&W pages';
+  document.getElementById('cs-color').textContent = '₹' + (singleColorCost + doubleColorCost) + ' (' + (singleColorPages > 0 ? singleColorPages + ' single' : '') + (doubleColorSheets > 0 ? (singleColorPages > 0 ? ' + ' : '') + doubleColorSheets + ' dbl sheets' : '') + ')';
+  document.getElementById('cs-bw').textContent = '₹' + (singleBwCost + doubleBwCost) + ' (' + (singleBwPages > 0 ? singleBwPages + ' single' : '') + (doubleBwSheets > 0 ? (singleBwPages > 0 ? ' + ' : '') + doubleBwSheets + ' dbl sheets' : '') + ')';
+  document.getElementById('cs-side').textContent = totalSheets + ' sheets total (double saves paper)';
+  document.getElementById('cs-bind').textContent = '₹' + bindCost;
+  document.getElementById('cs-urgent').textContent = '₹' + urgent;
+  document.getElementById('cs-total').textContent = '₹' + total;
+
+  // Render page map grid
+  const grid = document.getElementById('page-map-grid');
+  grid.innerHTML = pageMap.map(e => {
+    let bg, border, text;
+    if (e.hasConflict) { bg='bg-red-100'; border='border-red-400'; text='text-red-700'; }
+    else if (e.label==='C') { bg='bg-violet-200'; border='border-violet-400'; text='text-violet-700'; }
+    else if (e.label==='B') { bg='bg-gray-200'; border='border-gray-400'; text='text-gray-700'; }
+    else { bg='bg-amber-50'; border='border-amber-300'; text='text-amber-600'; }
+    return `<div class="w-7 h-7 rounded border ${bg} ${border} flex items-center justify-center text-[10px] font-bold ${text}" title="Page ${e.page}">${e.page}</div>`;
+  }).join('');
+
+  // Conflict warnings
+  const conflicts = pageMap.filter(p => p.hasConflict);
+  const cw = document.getElementById('conflict-warnings');
+  if (conflicts.length) {
+    cw.classList.remove('hidden');
+    cw.innerHTML = '<i class="ti ti-alert-triangle mr-1"></i>' + conflicts.length + ' page(s) have overlapping ranges. First range settings used.';
+  } else { cw.classList.add('hidden'); }
+}
+
+// ===== STEP 3: CONFIRM =====
+function updateOrderSummary() {
+  const pages = document.getElementById('total-pages').value;
+  const copies = document.getElementById('copies').value;
+  const binding = document.getElementById('binding').value;
+  document.getElementById('order-summary').innerHTML = `
+    <div class="flex justify-between"><span>Pages</span><span class="font-medium">${pages}</span></div>
+    <div class="flex justify-between"><span>Copies</span><span class="font-medium">${copies}</span></div>
+    <div class="flex justify-between"><span>Ranges</span><span class="font-medium">${pageRanges.length} range(s)</span></div>
+    <div class="flex justify-between"><span>Binding</span><span class="font-medium">${binding}</span></div>
+    <div class="flex justify-between"><span>Priority</span><span class="font-medium">${document.getElementById('priority').value}</span></div>`;
+  document.getElementById('pay-total').textContent = '₹' + (costData.total || 0);
+}
+
+async function submitOrder() {
+  const btn = document.getElementById('btn-submit');
+  btn.disabled = true; btn.innerHTML = '<i class="ti ti-loader-2 animate-spin"></i> Placing order...';
+  const printSettings = {
+    mode: 'page-range',
+    colorType: 'bw',
+    side: 'single',
+    copies: parseInt(document.getElementById('copies').value) || 1,
+    totalPages: parseInt(document.getElementById('total-pages').value) || 1,
+    paperSize: document.getElementById('paper-size').value,
+    orientation: document.getElementById('orientation').value,
+    binding: document.getElementById('binding').value,
+    priority: document.getElementById('priority').value,
+    pageRanges: pageRanges
+  };
+  try {
+    const res = await fetch(API + '/orders', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
+      body: JSON.stringify({
+        fileName: uploadedFile.fileName,
+        originalName: uploadedFile.originalName,
+        fileUrl: uploadedFile.fileUrl,
+        fileType: uploadedFile.fileType,
+        pdfUrl: uploadedFile.pdfUrl,
+        printSettings,
+        paymentMethod
+      })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || data.message || 'Order failed');
+    document.getElementById('token-display').textContent = data.token;
+    document.getElementById('token-time').textContent = 'Est. ~' + (data.estimatedTime || 10) + ' min';
+    goToStep(4);
+  } catch(err) {
+    alert('Error: ' + err.message);
+  } finally {
+    btn.disabled = false; btn.innerHTML = '<i class="ti ti-printer"></i> Place print order';
+  }
+}
+
+// ===== STUDENT PREVIEW =====
+async function showStudentPreview() {
+  const pages = parseInt(document.getElementById('total-pages').value) || 1;
+  const copies = parseInt(document.getElementById('copies').value) || 1;
+  const binding = document.getElementById('binding').value;
+  const bindClass = binding==='spiral'?'border-l-4 border-l-violet-400':binding==='stapling'?'border-l-4 border-l-gray-500':binding==='lamination'?'border-l-4 border-l-amber-400':'';
+
+  const container = document.getElementById('student-preview-content');
+  container.innerHTML = '<div class="text-center py-8 text-gray-400"><i class="ti ti-loader-2 animate-spin text-3xl block mb-2"></i>Rendering preview...</div>';
+  document.getElementById('student-preview-modal').classList.remove('hidden');
+
+  // Cover sheet
+  let html = '<div class="border-2 border-gray-300 rounded-xl shadow-lg bg-white p-8 '+bindClass+' max-w-[500px] mx-auto mb-6"><div class="text-[10px] text-gray-400 uppercase text-center mb-4">\u2014 First Printed Sheet \u2014</div><div class="border-2 border-dashed border-violet-300 rounded-xl p-6 text-center"><div class="text-[10px] text-gray-400 uppercase mb-1">Smart Xerox Queue</div><div class="text-3xl font-bold text-violet-600 mb-1">PX###</div><div class="text-base font-medium text-gray-800">'+(user.name||'Student')+'</div><div class="text-xs text-gray-500 mb-3">'+(user.usn||'')+'</div><div class="grid grid-cols-2 gap-3 text-sm border-t border-gray-200 pt-3 text-left"><div><span class="text-gray-400">Copies:</span> <b>'+copies+'</b></div><div><span class="text-gray-400">Amount:</span> <b class="text-green-700">\u20b9'+(costData.total||0)+'</b></div><div><span class="text-gray-400">Pages:</span> <b>'+pages+'</b></div><div><span class="text-gray-400">Binding:</span> <b class="capitalize">'+binding+'</b></div></div></div></div>';
+
+  // Try to render actual file
+  if (uploadedFile && uploadedFile.fileName) {
+    try {
+      const previewRes = await fetch((window.location.port==='5000'?'':('http://localhost:5000'))+'/api/preview/'+uploadedFile.fileName, {headers:{'Authorization':'Bearer '+token}});
+      const preview = await previewRes.json();
+      if (preview.type === 'pdf') {
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const pdf = await pdfjsLib.getDocument(window.location.origin + preview.url).promise;
+        const totalPdfPages = pdf.numPages;
+        for (let i = 1; i <= totalPdfPages; i++) {
+          const page = await pdf.getPage(i);
+          const viewport = page.getViewport({scale:1.2});
+          const canvas = document.createElement('canvas');
+          canvas.width = viewport.width; canvas.height = viewport.height;
+          await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+          const pg = pageRanges.find(r => i >= r.from && i <= r.to);
+          const isC = pg ? pg.colorType==='color' : false;
+          const isD = pg ? pg.side==='double' : false;
+          // Front side with content
+          html += '<div class="border-2 '+(isC?'border-violet-300':'border-gray-300')+' rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-4 relative"><div class="absolute top-2 left-3 z-10 flex gap-1"><span class="px-2 py-0.5 rounded text-[10px] font-semibold '+(isC?'bg-violet-100 text-violet-700':'bg-gray-100 text-gray-600')+'">Page '+i+' (Front) \u00b7 '+(isC?'COLOR':'B&W')+'</span>'+(isD?'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-blue-100 text-blue-700">\u27fa Double</span>':'<span class="px-2 py-0.5 rounded text-[10px] font-semibold bg-gray-100 text-gray-500">Single</span>')+'</div><img src="'+canvas.toDataURL()+'" class="w-full" style="'+(isC?'':'filter:grayscale(100%);')+'"/></div>';
+          // If single side, show blank back
+          if (!isD) {
+            html += '<div class="border-2 border-gray-200 rounded-xl shadow bg-gray-50 max-w-[500px] mx-auto mb-6 relative h-20 flex items-center justify-center"><span class="text-xs text-gray-300 italic">Back of sheet (blank)</span></div>';
+          }
+        }
+      } else if (preview.type === 'image') {
+        html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg overflow-hidden '+bindClass+' max-w-[500px] mx-auto mb-6"><img src="'+window.location.origin+preview.url+'" class="w-full" style="'+(pageRanges[0]&&pageRanges[0].colorType==='color'?'':'filter:grayscale(100%);')+'"/></div>';
+      } else if (preview.type === 'html') {
+        html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg '+bindClass+' max-w-[500px] mx-auto mb-6 overflow-hidden"><div class="p-6 text-sm leading-relaxed">'+preview.content+'</div></div>';
+      } else {
+        html += '<div class="border-2 border-gray-300 rounded-xl shadow-lg bg-white p-8 '+bindClass+' max-w-[500px] mx-auto text-center"><i class="ti ti-file-text text-gray-300 text-4xl mb-2 block"></i><div class="font-medium text-gray-700">'+(uploadedFile.originalName||'Document')+'</div><div class="text-xs text-gray-500 mt-1">'+(preview.message||'File will print with selected preferences')+'</div></div>';
+      }
+    } catch(e) { html += '<div class="text-sm text-red-500 text-center">'+e.message+'</div>'; }
+  }
+  container.innerHTML = html;
+}
+
+// ===== UTILITIES =====
+function resetFlow() {
+  uploadedFile = null;
+  pageRanges = [{from:1, to:5, colorType:'color', side:'single'}, {from:6, to:20, colorType:'bw', side:'single'}];
+  document.getElementById('file-input').value = '';
+  document.getElementById('file-info').classList.add('hidden');
+  goToStep(1);
+}
+
+function logout() { localStorage.clear(); window.location.href = 'index.html'; }
+
+// Drag and drop
+const dz = document.getElementById('drop-zone');
+dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('border-violet-400','bg-violet-50'); });
+dz.addEventListener('dragleave', () => dz.classList.remove('border-violet-400','bg-violet-50'));
+dz.addEventListener('drop', e => {
+  e.preventDefault(); dz.classList.remove('border-violet-400','bg-violet-50');
+  if (e.dataTransfer.files.length) {
+    document.getElementById('file-input').files = e.dataTransfer.files;
+    handleFileSelect(document.getElementById('file-input'));
+  }
+});
+
+// Init - don't call renderRanges here, it runs when step 2 opens
+</script>
+</body>
+</html>

@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Student Login — Smart Xerox Queue</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css"/>
+  <style>body{font-family:'Inter',sans-serif}</style>
+</head>
+<body class="min-h-screen bg-gray-50 flex items-center justify-center p-4">
+<div class="w-full max-w-md">
+  <div class="text-center mb-6">
+    <a href="index.html" class="text-sm text-violet-600 hover:underline"><i class="ti ti-arrow-left"></i> Back</a>
+    <div class="inline-flex items-center justify-center w-14 h-14 bg-violet-100 rounded-2xl mt-4 mb-3">
+      <i class="ti ti-school text-violet-600 text-2xl"></i>
+    </div>
+    <h1 class="text-xl font-semibold text-gray-900">Student Login</h1>
+  </div>
+  <div class="bg-white rounded-2xl border border-gray-200 p-8">
+    <!-- Tabs -->
+    <div class="flex gap-1 mb-6 bg-gray-100 p-1 rounded-xl">
+      <button onclick="switchTab('login')" id="tab-login" class="flex-1 py-2 text-sm font-medium rounded-lg bg-white text-gray-900 shadow-sm">Login</button>
+      <button onclick="switchTab('register')" id="tab-register" class="flex-1 py-2 text-sm font-medium rounded-lg text-gray-500">Register</button>
+    </div>
+    <!-- Login -->
+    <div id="panel-login">
+      <form onsubmit="handleLogin(event)" class="space-y-4">
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Email</label>
+          <input id="login-email" type="email" required placeholder="you@college.edu"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/>
+        </div>
+        <div>
+          <label class="block text-sm font-medium text-gray-700 mb-1">Password</label>
+          <input id="login-password" type="password" required placeholder="••••••••"
+            class="w-full border border-gray-200 rounded-xl px-4 py-3 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/>
+        </div>
+        <div id="login-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+        <button type="submit" id="login-btn" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-3 rounded-xl text-sm transition">Login</button>
+      </form>
+    </div>
+    <!-- Register -->
+    <div id="panel-register" class="hidden">
+      <form onsubmit="handleRegister(event)" class="space-y-4">
+        <div class="grid grid-cols-2 gap-3">
+          <div><label class="block text-xs text-gray-600 mb-1">Full Name</label><input id="reg-name" required placeholder="Bhuvana S" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/></div>
+          <div><label class="block text-xs text-gray-600 mb-1">USN</label><input id="reg-usn" placeholder="1XX21CS001" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300 uppercase"/></div>
+        </div>
+        <div><label class="block text-xs text-gray-600 mb-1">Email</label><input id="reg-email" type="email" required placeholder="you@college.edu" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/></div>
+        <div><label class="block text-xs text-gray-600 mb-1">Phone</label><input id="reg-phone" type="tel" placeholder="9876543210" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/></div>
+        <div><label class="block text-xs text-gray-600 mb-1">Password</label><input id="reg-password" type="password" required placeholder="Min 6 characters" class="w-full border border-gray-200 rounded-xl px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-violet-300"/></div>
+        <div id="reg-error" class="hidden text-red-600 text-sm bg-red-50 rounded-lg px-3 py-2"></div>
+        <button type="submit" class="w-full bg-violet-600 hover:bg-violet-700 text-white font-medium py-3 rounded-xl text-sm transition">Create Account</button>
+      </form>
+    </div>
+  </div>
+</div>
+<script>
+const API = window.location.port === '5000' ? '/api' : 'http://localhost:5000/api';
+function switchTab(tab) {
+  document.getElementById('panel-login').classList.toggle('hidden', tab!=='login');
+  document.getElementById('panel-register').classList.toggle('hidden', tab!=='register');
+  document.getElementById('tab-login').className = 'flex-1 py-2 text-sm font-medium rounded-lg ' + (tab==='login'?'bg-white text-gray-900 shadow-sm':'text-gray-500');
+  document.getElementById('tab-register').className = 'flex-1 py-2 text-sm font-medium rounded-lg ' + (tab==='register'?'bg-white text-gray-900 shadow-sm':'text-gray-500');
+}
+async function handleLogin(e) {
+  e.preventDefault();
+  try {
+    const res = await fetch(API+'/auth/login', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ email: document.getElementById('login-email').value, password: document.getElementById('login-password').value })});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    localStorage.setItem('token', data.token); localStorage.setItem('user', JSON.stringify(data));
+    window.location.href = 'dashboard.html';
+  } catch(err) { document.getElementById('login-error').textContent=err.message; document.getElementById('login-error').classList.remove('hidden'); }
+}
+async function handleRegister(e) {
+  e.preventDefault();
+  try {
+    const res = await fetch(API+'/auth/register', { method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ name:document.getElementById('reg-name').value, usn:document.getElementById('reg-usn').value, email:document.getElementById('reg-email').value, phone:document.getElementById('reg-phone').value, password:document.getElementById('reg-password').value, role:'student' })});
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.message);
+    localStorage.setItem('token', data.token); localStorage.setItem('user', JSON.stringify(data));
+    window.location.href = 'dashboard.html';
+  } catch(err) { document.getElementById('reg-error').textContent=err.message; document.getElementById('reg-error').classList.remove('hidden'); }
+}
+if (localStorage.getItem('token')) { const u=JSON.parse(localStorage.getItem('user')||'{}'); if(u.role==='student') window.location.href='dashboard.html'; }
+</script>
+</body>
+</html>
